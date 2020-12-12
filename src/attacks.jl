@@ -1,0 +1,88 @@
+using LinearAlgebra: norm
+
+function _computepgdstep!(grads; α, αnorm) 
+    if isinf(αnorm)
+        grads .= sign.(grads) .* α
+    else
+        map!(x -> x * α / norm(reshape(x, :), αnorm), eachslice(grads; dims = 4))
+    end
+        
+    return grads
+end
+    
+"""
+    pgd!(x, y, model; loss, nsteps, target = nothing,
+         ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+         clamprange = (0, 1), project = true, mcsamples = 1)
+
+Perturb `x` *in-place* using a `nsteps` PGD attack.
+When `target` is set, `loss(model(x), target)` is minimized.
+If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untargeted attack).
+
+# Arguments:
+- `x`: the input sample to perturb *in-place*
+- `y`: the correct output label
+- `model`: the model to attack
+- `loss`: the loss function
+- `nsteps`: the number of PGD iterations
+- `ϵ`: the size of the pertubation ball
+- `α`: the step size for each perturbation step
+- `ϵnorm`: the type of L-norm for the ϵ-ball
+- `αnorm`: the type of L-norm used for normalizing the steps by sample per batch
+- `clamprange`: the range to clamp the final perturbed sample
+- `project`: set to `true` to project the perturbation onto the ϵ-ball at each step
+- `mcsamples`: the number of Monte-Carlo samples used to estimate the gradient at each step
+               (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
+"""
+function pgd!(x::T, y, model; loss, nsteps, target = nothing,
+                              ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+                              clamprange = (0, 1), project = true, mcsamples = 1) where T
+    # choose targeted or untargeted label
+    ytarget = isnothing(target) ? y : target
+
+    # randomly initialize perturbation
+    x .+= rand_init(x; range = clamp_range)
+    
+    # perform attack iterations
+    for i in 1:nsteps
+        # take gradient
+        grads = zero(T)
+        for j in 1:mcsamples # estimate gradient with samples
+            grads .+= gradient(x -> loss(model(x), ytarget), x)[1]
+        end
+        grads ./= mcsamples
+        
+        # compute gradient step
+        _computepgdstep!(grads; stepsize = stepsize, stepnorm = stepnorm)
+            
+        # gradient descent towards target or gradient ascent away from y
+        @. grads = isnothing(target) ? grads : -grads
+        
+        if project
+            # project back onto l-ball
+            proj_lball!(x, grads; ϵ = ϵ, ϵnorm = ϵnorm)
+        else
+            # just add gradient step
+            x .+= grads
+        end
+    end
+           
+    # clamp output
+    x .= clamp.(x, clamprange[1], clamprange[2])
+
+    return x
+end
+        
+"""
+    pgd(x, y, model; loss, nsteps, target = nothing,
+        ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+        clamprange = (0, 1), project = true, mcsamples = 1)
+
+A non-mutating version of [`pgd!`](@ref).
+"""
+pgd(x, y, model; loss, nsteps, target = nothing,
+                 ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+                 clamprange = (0, 1), project = true, mcsamples = 1) =
+    pgd!(copy(x), y, model; loss = loss, target = target,
+                            ϵ = ϵ, α = α, ϵnorm = ϵnorm, αnorm = αnorm,
+                            clamprange = clamprange, project = project, mcsamples = mcsamples)
