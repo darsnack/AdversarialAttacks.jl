@@ -12,7 +12,7 @@ end
     
 """
     pgd!(x, y, model; loss, nsteps, target = nothing,
-         ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+         ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
          clamprange = (0, 1), project = true, mcsamples = 1)
 
 Perturb `x` *in-place* using a `nsteps` PGD attack.
@@ -35,7 +35,7 @@ If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untarge
                (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
 """
 function pgd!(x::T, y, model; loss, nsteps, target = nothing,
-                              ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
+                              ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
                               clamprange = (0, 1), project = true, mcsamples = 1) where T
     # choose targeted or untargeted label
     ytarget = isnothing(target) ? y : target
@@ -53,7 +53,7 @@ function pgd!(x::T, y, model; loss, nsteps, target = nothing,
         grads ./= mcsamples
         
         # compute gradient step
-        _computepgdstep!(grads; stepsize = stepsize, stepnorm = stepnorm)
+        _computepgdstep!(grads; α = α, αnorm = αnorm)
             
         # gradient descent towards target or gradient ascent away from y
         @. grads = isnothing(target) ? grads : -grads
@@ -80,9 +80,37 @@ end
 
 A non-mutating version of [`pgd!`](@ref).
 """
-pgd(x, y, model; loss, nsteps, target = nothing,
-                 ϵ = 0.5, α = ϵ / 5, ϵnorm = 2, αnorm = 2,
-                 clamprange = (0, 1), project = true, mcsamples = 1) =
-    pgd!(copy(x), y, model; loss = loss, target = target,
-                            ϵ = ϵ, α = α, ϵnorm = ϵnorm, αnorm = αnorm,
-                            clamprange = clamprange, project = project, mcsamples = mcsamples)
+pgd(x, y, model; kwargs...) = pgd!(copy(x), y, model; kwargs...)
+
+"""
+    fgsm!(x, y, model; loss, target = nothing, ϵ = 0.5,
+                       clamprange = (0, 1), mcsamples = 1)
+
+Perturb `x` *in-place* using a FGSM attack.
+When `target` is set, `loss(model(x), target)` is minimized.
+If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untargeted attack).
+
+*Note: FGSM is implemented as 1-step PGD with L∞-norm.*
+
+# Arguments:
+- `x`: the input sample to perturb *in-place*
+- `y`: the correct output label
+- `model`: the model to attack
+- `loss`: the loss function
+- `ϵ`: the size of the pertubation ball
+- `clamprange`: the range to clamp the final perturbed sample
+- `mcsamples`: the number of Monte-Carlo samples used to estimate the gradient at each step
+                (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
+"""
+fgsm!(x, y, model; loss, target = nothing, ϵ = 0.5, clamprange = (0, 1), mcsamples = 1) =
+    pgd!(x, y, model; loss = loss, target = target,
+                      ϵ = ϵ, clamprange = clamprange, mcsamples = mcsamples,
+                      nsteps = 1, ϵnorm = Inf)
+
+"""
+    fgsm(x, y, model; loss, target = nothing, ϵ = 0.5,
+                      clamprange = (0, 1), mcsamples = 1)
+
+A non-mutating version of [`fgsm!`](@ref).
+"""
+fgsm(x, y, model; kwargs...) = fgsm!(copy(x), y, model; kwargs...)
