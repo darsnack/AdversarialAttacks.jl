@@ -4,7 +4,7 @@ function _computepgdstep!(grads; α, αnorm)
     if isinf(αnorm)
         grads .= sign.(grads) .* α
     else
-        map!(x -> x * α / norm(reshape(x, :), αnorm), eachslice(grads; dims = 4))
+        map!(x -> x * α / norm(reshape(x, :), αnorm), eachslice(grads; dims = ndims(grads)))
     end
         
     return grads

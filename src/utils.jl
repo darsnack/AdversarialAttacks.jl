@@ -24,7 +24,7 @@ function proj_lball!(xadv, δ; ϵ, ϵnorm)
         xadv .= max.(min.(xadv, xadv .+ ϵ), xadv .- ϵ)
     else
         map!((xi, δi) -> xi .+ δi * (ϵ / max.(norm(reshape(δi, :), ϵnorm), ϵ)),
-             xadv, xadv, eachslice(δ; dims = 4))
+             xadv, xadv, eachslice(δ; dims = ndims(δ)))
     end
             
     return xadv
