@@ -34,9 +34,9 @@ If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untarge
 - `mcsamples`: the number of Monte-Carlo samples used to estimate the gradient at each step
                (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
 """
-function pgd!(x::T, y, model; loss, nsteps, target = nothing,
-                              ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
-                              clamprange = (0, 1), project = true, mcsamples = 1) where T
+function pgd!(x, y, model; loss, nsteps, target = nothing,
+                           ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
+                           clamprange = (0, 1), project = true, mcsamples = 1)
     # choose targeted or untargeted label
     ytarget = isnothing(target) ? y : target
 
@@ -46,7 +46,7 @@ function pgd!(x::T, y, model; loss, nsteps, target = nothing,
     # perform attack iterations
     for i in 1:nsteps
         # take gradient
-        grads = zero(T)
+        grads = zero(x)
         for j in 1:mcsamples # estimate gradient with samples
             grads .+= gradient(x -> loss(model(x), ytarget), x)[1]
         end
