@@ -41,7 +41,7 @@ function pgd!(x::T, y, model; loss, nsteps, target = nothing,
     ytarget = isnothing(target) ? y : target
 
     # randomly initialize perturbation
-    x .+= rand_init(x; range = clamp_range)
+    x .+= rand_init(x; range = clamprange)
     
     # perform attack iterations
     for i in 1:nsteps
