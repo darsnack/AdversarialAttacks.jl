@@ -5,8 +5,8 @@ Generate a random initialization of the same size and type as `x`.
 If `x` is an integer array, then `range` specifies a set of integers.
 Otherwise, `range` specifies the set of real numbers.
 """
-rand_init(x::AbstractArray{<:Integer}; range = (0, 255)) = rand(range[1]:range[2], size(x))
-rand_init(x::AbstractArray; range = (0, 1)) = (range[2] - range[1]) .* rand(size(x)) .+ range[1]
+rand_init(x::AbstractArray{<:Integer}; range = (0, 255)) = rand(range[1]:range[2], size(x)...)
+rand_init(x::AbstractArray; range = (0, 1)) = (range[2] - range[1]) .* rand(size(x)...) .+ range[1]
 
 """
     proj_lball!(xadv, δ; ϵ, ϵnorm)
@@ -24,7 +24,7 @@ function proj_lball!(xadv, δ; ϵ, ϵnorm)
         xadv .= max.(min.(xadv, xadv .+ ϵ), xadv .- ϵ)
     else
         map!((xi, δi) -> xi .+ δi * (ϵ / max.(norm(reshape(δi, :), ϵnorm), ϵ)),
-             xadv, xadv, eachslice(δ; dims = ndims(δ)))
+             xadv, eachslice(xadv; dims = ndims(xadv)), eachslice(δ; dims = ndims(δ)))
     end
             
     return xadv
