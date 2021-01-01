@@ -27,5 +27,5 @@ function proj_lball!(x, δ; ϵ, ϵnorm)
              x, eachslice(x; dims = ndims(x)), eachslice(δ; dims = ndims(δ)))
     end
             
-    return xadv
+    return x
 end
