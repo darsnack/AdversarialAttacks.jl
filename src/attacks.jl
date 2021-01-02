@@ -43,14 +43,14 @@ function pgd!(x, y, model; loss, nsteps, target = nothing,
     ytarget = isnothing(target) ? y : target
 
     # randomly initialize perturbation
-    x .+= rand_init(x; range = initrange)
+    δ = rand_init(x; range = initrange)
     
     # perform attack iterations
     for i in 1:nsteps
         # take gradient
         grads = zero(x)
         for j in 1:mcsamples # estimate gradient with samples
-            grads .+= gradient(x -> loss(model(x), ytarget), x)[1]
+            grads .+= gradient(x -> loss(model(x .+ δ), ytarget), x)[1]
         end
         grads ./= mcsamples
         
@@ -58,14 +58,14 @@ function pgd!(x, y, model; loss, nsteps, target = nothing,
         _computepgdstep!(grads; α = α, αnorm = αnorm)
             
         # gradient descent towards target or gradient ascent away from y
-        @. grads = isnothing(target) ? grads : -grads
+        @. δ += isnothing(target) ? grads : -grads
         
         if project
             # project back onto l-ball
-            proj_lball!(x, grads; ϵ = ϵ, ϵnorm = ϵnorm)
+            proj_lball!(x, δ; ϵ = ϵ, ϵnorm = ϵnorm)
         else
             # just add gradient step
-            x .+= grads
+            x .+= δ
         end
     end
            
