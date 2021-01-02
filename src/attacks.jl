@@ -58,7 +58,7 @@ function pgd!(x, y, model; loss, nsteps, target = nothing,
         _computepgdstep!(grads; α = α, αnorm = αnorm)
             
         # gradient descent towards target or gradient ascent away from y
-        @. δ += isnothing(target) ? grads : -grads
+        δ .+= isnothing(target) ? grads : -grads
         
         if project
             # project back onto l-ball
