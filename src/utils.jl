@@ -21,7 +21,7 @@ Project the perturbed sample (`x + δ`) onto an `ϵnorm`-ball of size `ϵ` aroun
 """
 function proj_lball!(x, δ; ϵ, ϵnorm)
     if isinf(ϵnorm)
-        x .= max.(min.(x .+ δ, x .+ ϵ), x .- ϵ)
+        x .= x .+ max.(min.(δ, ϵ), -ϵ)
     else
         map!((xi, δi) -> xi .+ δi * (ϵ / max.(norm(reshape(δi, :), ϵnorm), ϵ)),
              x, eachslice(x; dims = ndims(x)), eachslice(δ; dims = ndims(δ)))

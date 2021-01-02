@@ -50,7 +50,7 @@ function pgd!(x, y, model; loss, nsteps, target = nothing,
         # take gradient
         grads = zero(x)
         for j in 1:mcsamples # estimate gradient with samples
-            grads .+= gradient(x -> loss(model(x), ytarget), x .+ δ)[1]
+            grads .+= gradient(δ -> loss(model(x .+ δ), ytarget), δ)[1]
         end
         grads ./= mcsamples
         
