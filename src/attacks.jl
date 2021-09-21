@@ -4,7 +4,7 @@ function _computepgdstep!(grads; α, αnorm)
     if isinf(αnorm)
         grads .= sign.(grads) .* α
     else
-        map!(x -> x * α / norm(reshape(x, :), αnorm), eachslice(grads; dims = 4))
+        map!(x -> x * α / norm(reshape(x, :), αnorm), eachslice(grads; dims = ndims(grads)))
     end
         
     return grads
@@ -13,7 +13,7 @@ end
 """
     pgd!(x, y, model; loss, nsteps, target = nothing,
          ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
-         clamprange = (0, 1), project = true, mcsamples = 1)
+         clamprange = (0, 1), initrange = clamprange, project = true, mcsamples = 1)
 
 Perturb `x` *in-place* using a `nsteps` PGD attack.
 When `target` is set, `loss(model(x), target)` is minimized.
@@ -30,25 +30,27 @@ If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untarge
 - `ϵnorm`: the type of L-norm for the ϵ-ball
 - `αnorm`: the type of L-norm used for normalizing the steps by sample per batch
 - `clamprange`: the range to clamp the final perturbed sample
+- `initrange`: the range to used when randomly initializing the perturbation
 - `project`: set to `true` to project the perturbation onto the ϵ-ball at each step
 - `mcsamples`: the number of Monte-Carlo samples used to estimate the gradient at each step
                (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
 """
-function pgd!(x::T, y, model; loss, nsteps, target = nothing,
-                              ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
-                              clamprange = (0, 1), project = true, mcsamples = 1) where T
+function pgd!(x, y, model; loss, nsteps, target = nothing,
+                           ϵ = 0.5, α = ϵ / nsteps, ϵnorm = 2, αnorm = ϵnorm,
+                           clamprange = (0, 1), initrange = clamprange,
+                           project = true, mcsamples = 1)
     # choose targeted or untargeted label
     ytarget = isnothing(target) ? y : target
 
     # randomly initialize perturbation
-    x .+= rand_init(x; range = clamp_range)
+    δ = rand_init(x; range = initrange)
     
     # perform attack iterations
     for i in 1:nsteps
         # take gradient
-        grads = zero(T)
+        grads = zero(x)
         for j in 1:mcsamples # estimate gradient with samples
-            grads .+= gradient(x -> loss(model(x), ytarget), x)[1]
+            grads .+= gradient(δ -> loss(model(x .+ δ), ytarget), δ)[1]
         end
         grads ./= mcsamples
         
@@ -56,14 +58,14 @@ function pgd!(x::T, y, model; loss, nsteps, target = nothing,
         _computepgdstep!(grads; α = α, αnorm = αnorm)
             
         # gradient descent towards target or gradient ascent away from y
-        @. grads = isnothing(target) ? grads : -grads
+        δ .+= isnothing(target) ? grads : -grads
         
         if project
             # project back onto l-ball
-            proj_lball!(x, grads; ϵ = ϵ, ϵnorm = ϵnorm)
+            proj_lball!(x, δ; ϵ = ϵ, ϵnorm = ϵnorm)
         else
             # just add gradient step
-            x .+= grads
+            x .+= δ
         end
     end
            
@@ -99,12 +101,14 @@ If `target` is `nothing`, then `loss(model(x), y)` is maximized (i.e. an untarge
 - `loss`: the loss function
 - `ϵ`: the size of the pertubation ball
 - `clamprange`: the range to clamp the final perturbed sample
+- `initrange`: the range to used when randomly initializing the perturbation
 - `mcsamples`: the number of Monte-Carlo samples used to estimate the gradient at each step
                 (this is helpful `pgd!` is paired with a stochastic/obfuscated defense mechanism)
 """
-fgsm!(x, y, model; loss, target = nothing, ϵ = 0.5, clamprange = (0, 1), mcsamples = 1) =
+fgsm!(x, y, model; loss, target = nothing, ϵ = 0.5, clamprange = (0, 1), initrange = clamprange, mcsamples = 1) =
     pgd!(x, y, model; loss = loss, target = target,
-                      ϵ = ϵ, clamprange = clamprange, mcsamples = mcsamples,
+                      ϵ = ϵ, clamprange = clamprange, initrange = initrange, 
+                      mcsamples = mcsamples,
                       nsteps = 1, ϵnorm = Inf)
 
 """
